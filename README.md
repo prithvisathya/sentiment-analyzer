@@ -1,3 +1,6 @@
+## Live API
+POST https://mzl29rjt40.execute-api-us-west-1.amazonaws.com/prod/analyze
+
 # Customer Sentiment Analyzer API
 
 A REST API that classifies the sentiment of text as positive or negative using a logistic regression model trained on 25,000 IMDB reviews.
