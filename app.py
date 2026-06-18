@@ -1,16 +1,22 @@
 import pickle
 import re
+import boto3
+import os
 from flask import Flask, request, jsonify
 
-# ── 1. Load the trained model & vectorizer from disk ─────────────
-# These were saved by train.py — Flask loads them once at startup
-# so every request doesn't have to retrain the model
-with open("model.pkl", "rb") as f:
-    model = pickle.load(f)
+# ── Load model from S3 ───────────────────────────────────────────
+# On AWS Lambda there's no local filesystem with our model files
+# so we download them from S3 at startup instead
+s3 = boto3.client("s3", region_name="us-west-1")
+BUCKET = "sentiment-analyzer-prithvi"
 
-with open("vectorizer.pkl", "rb") as f:
-    vectorizer = pickle.load(f)
+def load_from_s3(key):
+    response = s3.get_object(Bucket=BUCKET, Key=key)
+    return pickle.loads(response["Body"].read())
 
+print("Loading model from S3...")
+model = load_from_s3("model.pkl")
+vectorizer = load_from_s3("vectorizer.pkl")
 print("Model and vectorizer loaded successfully")
 
 # ── 2. Create the Flask app ───────────────────────────────────────
@@ -73,8 +79,22 @@ def health():
         "version": "1.0.0"
     }), 200
 
+@app.route("/prod/analyze", methods=["POST"])
+def analyze_prod():
+    return analyze()
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "404", "path": request.path}), 404 
+
 # ── 6. Start the server ───────────────────────────────────────────
 if __name__ == "__main__":
     # debug=True auto-reloads when you change the code
     # In production you'd set debug=False
     app.run(debug=True, port=5000)
+
+# Required for AWS Lambda
+from apig_wsgi import make_lambda_handler
+handler = make_lambda_handler(app) 
+
+    
